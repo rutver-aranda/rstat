@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RStat · Sistema Experto de Diseño Experimental y Metodología Estadística</title>
+
+  <!-- Google Fonts: Tipografía editorial académica -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            serif: ['"Source Serif 4"', 'Georgia', 'serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            paper: '#F7F8F6',
+            cardBorder: '#E2E6E1',
+            ink: '#1E293B',
+            slateDeep: '#0F2942',
+            forest: '#1B5E4B',
+            amberText: '#B45309',
+            amberBg: '#FEF3C7',
+            brickRed: '#991B1B',
+            brickBg: '#FEE2E2',
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- ExcelJS para generación de .xlsx real con celdas bloqueadas, validación y 3 pestañas -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+
+  <style>
+    body {
+      background-color: #F7F8F6;
+      color: #1E293B;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .option-card {
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+    }
+    .option-card:hover {
+      border-color: #94A3B8;
+      background-color: #F8FAFC;
+    }
+    .option-card.selected {
+      border-color: #0F2942;
+      background-color: #F1F5F9;
+      box-shadow: inset 0 0 0 1px #0F2942;
+    }
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F1F5F9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94A3B8;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col lg:flex-row">
+
+  <!-- Contenedor de notificaciones Toast (sin alert/confirm) -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm"></div>
+
+  <!-- Encabezado móvil -->
+  <header class="lg:hidden bg-white border-b border-cardBorder px-4 py-3 flex items-center justify-between sticky top-0 z-30">
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-md bg-slateDeep text-white flex items-center justify-center font-serif font-bold text-lg">R</div>
+      <div>
+        <span class="font-serif font-bold text-lg text-slateDeep leading-none block">RStat</span>
+        <span class="text-[11px] text-slate-500 block mt-0.5">Diseño Experimental y Metodología</span>
+      </div>
+    </div>
+    <button id="mobile-menu-btn" type="button" class="p-2.5 rounded-lg border border-cardBorder text-slateDeep hover:bg-slate-50" aria-label="Abrir navegación">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- Overlay móvil -->
+  <div id="mobile-overlay" class="fixed inset-0 bg-slate-900/40 z-30 hidden lg:hidden"></div>
+
+  <!-- Barra lateral fija izquierda (280px en escritorio) -->
+  <aside id="sidebar" class="fixed lg:sticky top-0 left-0 z-40 h-screen w-[280px] bg-white border-r border-cardBorder flex flex-col transform -translate-x-full lg:translate-x-0 transition-transform duration-200 ease-out shrink-0">
+    <!-- Identidad RStat -->
+    <div class="px-5 py-6 border-b border-cardBorder">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-slateDeep text-white flex items-center justify-center font-serif font-bold text-xl shrink-0">R</div>
+        <div>
+          <h1 class="font-serif font-bold text-2xl text-slateDeep leading-none tracking-tight">RStat</h1>
+          <p class="text-[11px] text-slate-500 mt-1 leading-tight">Sistema Experto de Diseño Experimental y Metodología Estadística</p>
+        </div>
+      </div>
+
+      <!-- Progreso -->
+      <div class="mt-5">
+        <div class="flex justify-between text-xs font-medium text-slate-600 mb-1.5">
+          <span>Progreso del diagnóstico</span>
+          <span id="progress-text">1 / 7</span>
+        </div>
+        <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div id="progress-bar" class="h-full bg-slateDeep transition-all duration-300" style="width: 14%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navegación de los 7 módulos + Resultados -->
+    <nav id="sidebar-nav" class="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+      <!-- Renderizado por JS -->
+    </nav>
+
+    <!-- Firma de autor y reinicio en la parte inferior de la barra lateral -->
+    <div class="px-4 py-4 border-t border-cardBorder bg-paper/70 space-y-3">
+      <div class="text-[11px] leading-relaxed text-slate-600">
+        <span class="font-semibold text-slateDeep block">Herramienta estadística programada por:</span>
+        Rutver Aranda Arguello — Doctor en Ciencias en Ecología y Desarrollo Sustentable.
+      </div>
+      <button id="btn-reset-all" type="button" class="w-full text-xs font-medium text-slate-600 hover:text-brickRed py-2 px-3 rounded-md border border-cardBorder bg-white hover:border-red-200 transition-colors">
+        Reiniciar cuestionario
+      </button>
+    </div>
+  </aside>
+
+  <!-- Área principal centrada (máx 860px) -->
+  <main class="flex-1 min-w-0 flex flex-col">
+    <div class="flex-1 w-full max-w-[860px] mx-auto px-4 sm:px-8 lg:px-10 py-8 lg:py-11">
+      <div id="main-content">
+        <!-- Renderizado dinámico por JS -->
+      </div>
+    </div>
+
+    <!-- Pie de página institucional con firma de autor -->
+    <footer class="border-t border-cardBorder bg-white/70 mt-10">
+      <div class="max-w-[860px] mx-auto px-4 sm:px-8 lg:px-10 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
+        <div>
+          <strong class="text-slateDeep font-semibold">RStat</strong> · Herramienta estadística programada por: <span class="text-slate-700 font-medium">Rutver Aranda Arguello</span> - Doctor en Ciencias en Ecología y Desarrollo Sustentable.
+        </div>
+        <div class="shrink-0 text-slate-400">Uso académico y de asesoría de tesis</div>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    /* =========================================================================
+       CONFIGURACIÓN DEL ASESOR (EDITABLE FÁCILMENTE)
+       ========================================================================= */
+    const ADVISOR_PIN = '2026';
+
+    const ADVISOR_CONTACT = {
+      name: 'Rutver Aranda Arguello',
+      degree: 'Doctor en Ciencias en Ecología y Desarrollo Sustentable',
+      email: 'aranda_100@live.com.mx',
+      whatsappDisplay: '+52 964 112 2856',
+      whatsappNumber: '529641122856', // Solo dígitos con código de país para enlace wa.me
+      instructions: 'Una vez que hayas capturado tus mediciones dentro de las celdas amarillas de la plantilla Excel sin alterar las columnas de diseño, envía el archivo adjunto por correo electrónico o WhatsApp indicando tu nombre completo y título de tesis.'
+    };
+
+    /* =========================================================================
+       DEFINICIÓN DE MÓDULOS Y ESTADO GLOBAL
+       ========================================================================= */
+    const MODULES = [
+      { id: 1, short: 'Contexto y Alcance', title: 'Módulo 1 · Contexto y Alcance', desc: 'Define el nivel académico, la etapa actual y el objetivo estadístico principal de tu tesis.' },
+      { id: 2, short: 'Anatomía de Variables', title: 'Módulo 2 · Anatomía de las Variables', desc: 'Identifica la naturaleza matemática de tus variables de respuesta (Y) y variables explicativas (X).' },
+      { id: 3, short: 'Diseño Experimental', title: 'Módulo 3 · Diseño Experimental y Control de Error', desc: 'Establece el control de variabilidad, aleatorización, unidad experimental, repeticiones y balanceo.' },
+      { id: 4, short: 'Tiempo y Espacio', title: 'Módulo 4 · Estructura Temporal y Espacial', desc: 'Evalúa la independencia de tus observaciones en el tiempo, el espacio físico y entre sitios o ciclos.' },
+      { id: 5, short: 'Datos y Contingencia', title: 'Módulo 5 · Datos y Plan de Contingencia', desc: 'Anticipa patrones visibles en tus datos y define el Plan B metodológico si fallan los supuestos en residuos.' },
+      { id: 6, short: 'Post-hoc y Rigor', title: 'Módulo 6 · Post-hoc, Rigor y Entregable', desc: 'Selecciona comparaciones múltiples, nivel de significancia, software de preferencia y título del proyecto.' },
+      { id: 7, short: 'Base de Datos (Excel)', title: 'Módulo 7 · Personalización de Base de Datos', desc: 'Ingresa los nombres reales de tus factores y variables para generar tu plantilla Excel protegida.' },
+      { id: 8, short: 'Resultados y Envío', title: 'Diagnóstico Estadístico y Entregables', desc: 'Consulta tu diseño sugerido, borrador metodológico, plantilla Excel lista y datos de envío.' }
+    ];
+
+    const defaultState = () => ({
+      currentStep: 1,
+      activeResultTab: 'diagnostico', // diagnostico | metodologia | excel | asesor
+      activeAdvisorTool: 'rscript',   // rscript | futuras
+      advisorUnlocked: false,
+      answers: {
+        // Módulo 1
+        M1_01: 'Licenciatura',
+        M1_02: 'Anteproyecto (sin datos)',
+        M1_03: 'Experimental',
+        M1_04: 'Comparar tratamientos o grupos',
+        // Módulo 2
+        M2_01: 'Una a la vez (Univariado)',
+        M2_02: 'Continua (peso, altura, rendimiento)',
+        M2_03: 'Solo categóricas',
+        M2_04: '1 factor',
+        M2_05: 'Sí',
+        M2_06: 'Todos fijos',
+        // Módulo 3
+        M3_01: '1 fuente de variación (DBCA)',
+        M3_02: 'Todos al azar (Factorial)',
+        M3_03: 'Coinciden en la misma unidad (ej. aplico a 1 planta o 1 ha y mido esa misma unidad)',
+        M3_04: 4, // Entero sincronizado con Módulo 7
+        M3_05: 'Aleatorio simple',
+        M3_06: 'Sí, totalmente balanceado',
+        // Módulo 4
+        M4_01: 'No, solo una medición',
+        M4_02: 'Sí, ej. cada 7 días',
+        M4_03: 'Sí, en campo aleatorizadas en bloques',
+        M4_04: 'No, un solo sitio y ciclo',
+        // Módulo 5
+        M5_01: 'No',
+        M5_02: 'GLM (recomendado)',
+        // Módulo 6
+        M6_01: 'Todos contra todos',
+        M6_02: '0.05',
+        M6_03: 'R / RStudio',
+        M6_04: 'Evaluación experimental de tratamientos en campo'
+      },
+      config: {
+        factor1Name: 'tratamiento',
+        factor1Levels: 'T0, T1, T2, T3',
+        factor2Name: 'variedad',
+        factor2Levels: 'V1, V2',
+        numBlocks: 4,
+        numSubsamples: 3,
+        timeLabels: 'Sem1, Sem2, Sem3, Sem4',
+        variablesY: [
+          { name: 'Altura', unit: 'cm' },
+          { name: 'Número de frutos', unit: 'conteo' }
+        ]
+      }
+    });
+
+    let state = defaultState();
+
+    /* =========================================================================
+       UTILIDADES GENERALES
+       ========================================================================= */
+    function sanitizeForR(str) {
+      if (!str) return 'variable';
+      return str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .replace(/^(\d)/, 'v_$1') || 'variable';
+    }
+
+    function parseList(str, fallback = ['Nivel1', 'Nivel2']) {
+      const items = (str || '').split(',').map(s => s.trim()).filter(Boolean);
+      return items.length ? items : fallback;
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const styles = {
+        info: 'bg-slateDeep text-white border-slate-700',
+        success: 'bg-forest text-white border-emerald-800',
+        warning: 'bg-amberBg text-amberText border-amber-300',
+        error: 'bg-brickBg text-brickRed border-red-300'
+      };
+      const el = document.createElement('div');
+      el.className = `px-4 py-3 rounded-lg border text-sm font-medium shadow-sm transition-opacity duration-200 ${styles[type] || styles.info}`;
+      el.textContent = message;
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 220);
+      }, 3200);
+    }
+
+    function copyTextToClipboard(text, successMsg = 'Copiado al portapapeles') {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast(successMsg, 'success');
+      } catch (e) {
+        showToast('No se pudo copiar automáticamente. Selecciona el texto manualmente.', 'warning');
+      }
+    }
+
+    /* =========================================================================
+       REGLAS CONDICIONALES Y ALERTAS PEDAGÓGICAS
+       ========================================================================= */
+    function isExperimental() {
+      return state.answers.M1_03 !== 'Observacional';
+    }
+    function hasCategoricalX() {
+      return state.answers.M2_03 !== 'Solo continuas';
+    }
+    function hasMultipleFactors() {
+      return hasCategoricalX() && state.answers.M2_04 !== '1 factor';
+    }
+    function usesBlocks() {
+      return isExperimental() && (
+        state.answers.M3_01.includes('DBCA') ||
+        state.answers.M3_01.includes('Cuadrado Latino')
+      );
+    }
+    function hasSubsamples() {
+      return isExperimental() && state.answers.M3_03.startsWith('Aplico a un grupo');
+    }
+    function hasRepeatedMeasures() {
+      return !state.answers.M4_01.startsWith('No');
+    }
+
+    function getActiveAlerts(moduleFilter = null) {
+      const a = state.answers;
+      const alerts = [];
+
+      // M2: Conteo o Proporción
+      if (a.M2_02.startsWith('Conteo') || a.M2_02.startsWith('Proporción')) {
+        alerts.push({
+          module: 2,
+          severity: 'warning',
+          title: 'Distribución no normal esperada (Conteo / Proporción)',
+          text: 'Los conteos y proporciones rara vez cumplen el supuesto de normalidad. Evita aplicar ANOVA clásico sin diagnóstico; la ruta recomendada es un Modelo Lineal Generalizado (GLM/GLMM: Poisson, Binomial Negativa o Binomial).'
+        });
+      }
+      // M2: Ordinal
+      if (a.M2_02.startsWith('Ordinal')) {
+        alerts.push({
+          module: 2,
+          severity: 'warning',
+          title: 'Evita ANOVA clásico en escalas ordinales',
+          text: 'Las escalas de daño o severidad (ej. 1 a 5) no son variables continuas. No se recomienda promediarlas ni aplicar ANOVA paramétrico; considera pruebas no paramétricas o regresión logística ordinal.'
+        });
+      }
+      // M2: Licenciatura + 3 o más factores
+      if (a.M1_01 === 'Licenciatura' && hasCategoricalX() && a.M2_04.startsWith('3 o más')) {
+        alerts.push({
+          module: 2,
+          severity: 'warning',
+          title: 'Alta complejidad factorial para Licenciatura',
+          text: 'Un arreglo de 3 o más factores eleva rápidamente el número de unidades experimentales y complica interpretar interacciones triples. Verifica si realmente necesitas evaluar todas las combinaciones.'
+        });
+      }
+      // M3: Pseudorreplicación
+      if (hasSubsamples()) {
+        alerts.push({
+          module: 3,
+          severity: 'danger',
+          title: 'Alerta crítica: Riesgo de pseudorreplicación',
+          text: 'Medir varios individuos dentro de una misma parcela tratada NO aumenta tus repeticiones verdaderas. Debes promediar las submuestras por Unidad Experimental o incluir la UE como efecto aleatorio anidado en un modelo mixto.'
+        });
+      }
+      // M3: Repeticiones bajas (1 o 2)
+      const reps = parseInt(a.M3_04, 10) || 1;
+      if (isExperimental() && reps <= 2) {
+        alerts.push({
+          module: 3,
+          severity: 'danger',
+          title: reps === 1 ? 'Imposibilidad de estimar error experimental (r = 1)' : 'Baja potencia estadística (r = 2)',
+          text: reps === 1
+            ? 'Con una sola repetición por tratamiento no es posible estimar la varianza del error experimental ni ejecutar pruebas de hipótesis clásicas.'
+            : 'Con solo 2 repeticiones verdaderas, los grados de libertad del error son muy bajos y tu experimento tendrá poca potencia para detectar diferencias reales.'
+        });
+      }
+      // M4: Medidas repetidas >= 3
+      if (a.M4_01.includes('3 o más')) {
+        alerts.push({
+          module: 4,
+          severity: 'danger',
+          title: 'Autocorrelación temporal (Medidas Repetidas)',
+          text: 'No analices cada fecha por separado con ANOVAs independientes ni metas el "Tiempo" como un factor simple de un factorial. Las mediciones sobre la misma unidad están correlacionadas; requiere Modelos Mixtos con estructura temporal.'
+        });
+      }
+      // M6: Tukey con factores continuos
+      if (a.M1_04 === 'Comparar tratamientos o grupos' && a.M6_01 === 'Todos contra todos' && a.M2_03 !== 'Solo categóricas') {
+        alerts.push({
+          module: 6,
+          severity: 'warning',
+          title: 'Precaución: Comparaciones múltiples en factores cuantitativos',
+          text: 'Cuando los tratamientos son niveles cuantitativos continuos (ej. dosis crecientes), aplicar Tukey suele ser un error metodológico. Lo apropiado es ajustar una regresión para modelar la tendencia o estimar la dosis óptima.'
+        });
+      }
+
+      return moduleFilter ? alerts.filter(al => al.module === moduleFilter) : alerts;
+    }
+
+    function renderAlertBox(al) {
+      const styles = {
+        danger: 'bg-brickBg border-red-200 text-brickRed',
+        warning: 'bg-amberBg border-amber-300 text-amberText',
+        info: 'bg-slate-100 border-slate-300 text-slateDeep'
+      };
+      return `
+        <div class="rounded-lg border p-4 ${styles[al.severity]} text-sm leading-relaxed">
+          <div class="font-semibold mb-1">${al.title}</div>
+          <p class="opacity-95">${al.text}</p>
+        </div>
+      `;
+    }
+
+    /* =========================================================================
+       MOTOR DE DECISIÓN ESTADÍSTICA
+       ========================================================================= */
+    function computeDiagnosis() {
+      const a = state.answers;
+      let design = '';
+      let modelPlanA = '';
+      let modelPlanB = '';
+      let formulaMath = '';
+      let postHoc = '';
+      let rPackages = ['readxl', 'tidyverse'];
+
+      // 1. Diseño experimental
+      if (!isExperimental()) {
+        design = `Estudio Observacional con muestreo ${a.M3_05.toLowerCase()}`;
+      } else {
+        let baseDesign = 'Diseño Completamente al Azar (DCA)';
+        if (a.M3_01.includes('DBCA')) baseDesign = 'Diseño de Bloques Completos al Azar (DBCA)';
+        if (a.M3_01.includes('Cuadrado Latino')) baseDesign = 'Diseño en Cuadrado Latino (DCL)';
+
+        if (hasMultipleFactors()) {
+          if (a.M3_02.includes('Parcelas Divididas')) design = `${baseDesign} en Parcelas Divididas (Split-Plot)`;
+          else if (a.M3_02.includes('anidado')) design = `${baseDesign} con Factores Anidados`;
+          else design = `${baseDesign} con arreglo Factorial`;
+        } else {
+          design = baseDesign;
+        }
+        if (a.M4_01.includes('3 o más')) design += ' con Medidas Repetidas en el tiempo';
+      }
+
+      // 2. Modelo Plan A
+      const isMixed = a.M2_06.startsWith('Mixtos') || usesBlocks() || hasSubsamples() || a.M4_01.includes('3 o más') || a.M4_04.startsWith('Sí') || a.M3_06.startsWith('No');
+
+      if (a.M2_01.includes('Multivariado')) {
+        modelPlanA = 'Análisis Multivariado: PERMANOVA (basado en distancias) y ordenación (PCA / NMDS)';
+        formulaMath = 'Y_{n×p} ~ Factor_1 + Factor_2 + Bloque   (999 permutaciones)';
+        rPackages.push('vegan', 'FactoMineR');
+      } else if (a.M1_04.includes('supervivencia')) {
+        modelPlanA = 'Análisis de Supervivencia: Kaplan-Meier y Modelo de Riesgos Proporcionales de Cox';
+        formulaMath = 'h(t | X) = h_0(t) · exp(β_1 X_1 + ... + β_p X_p)';
+        rPackages.push('survival', 'survminer');
+      } else if (a.M2_02.startsWith('Conteo')) {
+        const fam = a.M5_01.startsWith('Sí') ? 'Binomial Negativa Cero-Inflada (ZINB)' : 'Poisson / Binomial Negativa';
+        modelPlanA = isMixed ? `Modelo Lineal Generalizado Mixto (GLMM) · Familia ${fam}` : `Modelo Lineal Generalizado (GLM) · Familia ${fam}`;
+        formulaMath = 'log(μ_ij) = μ + τ_i + b_j   (con offset de exposición si aplica)';
+        rPackages.push('glmmTMB', 'DHARMa', 'emmeans', 'car');
+      } else if (a.M2_02.startsWith('Proporción') || a.M2_02.startsWith('Binaria')) {
+        const fam = a.M2_02.startsWith('Binaria') ? 'Binomial (enlace logit)' : 'Binomial / Beta';
+        modelPlanA = isMixed ? `Modelo Lineal Generalizado Mixto (GLMM) · Familia ${fam}` : `Modelo Lineal Generalizado (GLM) · Familia ${fam}`;
+        formulaMath = 'logit(p_ij) = μ + τ_i + b_j';
+        rPackages.push('glmmTMB', 'DHARMa', 'emmeans', 'car');
+      } else if (a.M2_02.startsWith('Ordinal')) {
+        modelPlanA = isMixed ? 'Modelo Acumulativo Mixto de Enlace (CLMM) o prueba de Friedman' : 'Regresión Logística Ordinal (CLM) o Kruskal-Wallis';
+        formulaMath = 'logit(P(Y ≤ k)) = θ_k - (τ_i + b_j)';
+        rPackages.push('ordinal', 'rstatix');
+      } else if (a.M2_03 === 'Solo continuas') {
+        modelPlanA = isMixed ? 'Modelo Lineal Mixto de Regresión (LMM)' : 'Regresión Lineal / Polinomial';
+        formulaMath = 'Y_i = β_0 + β_1 X_i + ε_i';
+        rPackages.push('lme4', 'lmerTest', 'performance');
+      } else {
+        if (isMixed) {
+          modelPlanA = 'Modelo Lineal Mixto (LMM) estimado por REML';
+          formulaMath = usesBlocks()
+            ? 'Y_ij = μ + τ_i + β_j + ε_ij   (β_j ~ N(0, σ²_b), ε_ij ~ N(0, σ²))'
+            : 'Y_ijk = μ + τ_i + u_k + ε_ijk';
+          rPackages.push('lme4', 'lmerTest', 'emmeans', 'car', 'performance');
+        } else {
+          modelPlanA = 'Análisis de Varianza (ANOVA) bajo Modelo Lineal General';
+          formulaMath = hasMultipleFactors()
+            ? 'Y_ijk = μ + α_i + β_j + (αβ)_ij + ε_ijk   (ε_ijk ~ NID(0, σ²))'
+            : 'Y_ij = μ + τ_i + ε_ij   (ε_ij ~ NID(0, σ²))';
+          rPackages.push('emmeans', 'car', 'agricolae');
+        }
+      }
+
+      // 3. Plan B
+      if (a.M5_02.includes('GLM')) {
+        modelPlanB = 'Migración a Modelos Lineales Generalizados (GLM/GLMM) seleccionando la familia de distribución más adecuada (Gamma, Binomial Negativa, Tweedie) con evaluación de residuos simulados (DHARMa).';
+      } else if (a.M5_02.includes('Transformación')) {
+        modelPlanB = 'Transformación de la variable de respuesta (Box-Cox, logaritmo natural o raíz cuadrada) con nueva verificación de supuestos en residuos y presentación de medias retransformadas.';
+      } else if (a.M5_02.includes('no paramétricas')) {
+        modelPlanB = usesBlocks()
+          ? 'Prueba no paramétrica de Friedman o ANOVA de rangos alineados (ARTool) para diseños con bloques o factores.'
+          : 'Prueba no paramétrica de Kruskal-Wallis seguida de comparaciones múltiples de Dunn con ajuste de Holm-Bonferroni.';
+      } else {
+        modelPlanB = 'Ruta adaptativa: ante heterocedasticidad, usar Mínimos Cuadrados Generalizados (GLS) o Welch; ante asimetría marcada, ajustar un GLMM (Gamma/Log-normal) o pruebas de permutación.';
+      }
+
+      // 4. Post-hoc
+      if (a.M1_04 === 'Comparar tratamientos o grupos') {
+        if (a.M6_01 === 'Todos contra todos') postHoc = 'Prueba de comparaciones múltiples de Tukey (HSD)';
+        else if (a.M6_01.includes('testigo')) postHoc = 'Prueba de Dunnett (tratamientos contra testigo)';
+        else if (a.M6_01.includes('Contrastes')) postHoc = 'Contrastes ortogonales planificados a priori';
+        else if (a.M6_01.includes('Curva')) postHoc = 'Regresión polinomial o no lineal (curva de respuesta)';
+        else postHoc = 'Sin pruebas post-hoc (solo prueba global)';
+      } else {
+        postHoc = 'No aplica para el objetivo seleccionado';
+      }
+
+      return { design, modelPlanA, modelPlanB, formulaMath, postHoc, rPackages: [...new Set(rPackages)] };
+    }
+
+    /* =========================================================================
+       BORRADOR METODOLÓGICO (TESIS)
+       ========================================================================= */
+    function generateMethodologyText() {
+      const a = state.answers;
+      const diag = computeDiagnosis();
+      const isFuture = a.M1_02.startsWith('Anteproyecto');
+
+      const vEst = isFuture ? 'se establecerá' : 'se estableció';
+      const vEval = isFuture ? 'se evaluarán' : 'se evaluaron';
+      const vReg = isFuture ? 'se registrarán' : 'se registraron';
+      const vAnal = isFuture ? 'serán analizados' : 'fueron analizados';
+      const vVerif = isFuture ? 'se verificarán' : 'se verificaron';
+      const vApl = isFuture ? 'se aplicará' : 'se aplicó';
+      const vProc = isFuture ? 'se procesarán' : 'se procesaron';
+
+      const f1 = state.config.factor1Name || 'tratamiento';
+      const f1Levels = parseList(state.config.factor1Levels).join(', ');
+      const varsY = state.config.variablesY.map(v => `${v.name}${v.unit ? ` (${v.unit})` : ''}`).join(', ');
+      const reps = parseInt(a.M3_04, 10) || 4;
+
+      let p1 = `Diseño experimental.\nLa investigación de nivel ${a.M1_01.toLowerCase()} ${vEst} bajo un ${diag.design}. `;
+      if (isExperimental()) {
+        p1 += `En el experimento ${vEval} los niveles del factor ${f1} (${f1Levels})`;
+        if (hasMultipleFactors()) {
+          p1 += ` en combinación con ${state.config.factor2Name || 'factor_2'} (${parseList(state.config.factor2Levels).join(', ')})`;
+        }
+        p1 += `, considerando ${reps} repeticiones verdaderas por tratamiento`;
+        if (usesBlocks()) p1 += ` distribuidas en ${state.config.numBlocks} bloques`;
+        p1 += `. Las variables de respuesta que ${vReg} son: ${varsY}.`;
+        if (hasSubsamples()) {
+          p1 += ` Debido a que ${vReg} ${state.config.numSubsamples} submuestras por unidad experimental, estas se promediarán por unidad (o se incluirán como efecto aleatorio anidado) para evitar pseudorreplicación.`;
+        }
+      } else {
+        p1 += `El levantamiento de información en campo ${vEst} mediante muestreo ${a.M3_05.toLowerCase()}, registrando las variables: ${varsY}.`;
+      }
+
+      let p2 = `\n\nAnálisis estadístico.\nLos datos ${vAnal} mediante un ${diag.modelPlanA}, bajo la expresión general:\n\n    ${diag.formulaMath}\n\n`;
+      p2 += `Previo a la inferencia, ${vVerif} los supuestos estadísticos directamente sobre los residuos del modelo ajustado (normalidad con la prueba de Shapiro-Wilk y gráficos Q-Q; homogeneidad de varianzas con la prueba de Levene/Bartlett o diagnóstico de residuos simulados en modelos generalizados). En caso de incumplimiento de los supuestos clásicos, se contemplará el siguiente plan de contingencia: ${diag.modelPlanB}`;
+
+      let p3 = '';
+      if (a.M1_04 === 'Comparar tratamientos o grupos' && a.M6_01 !== 'Ninguna') {
+        p3 = `\n\nAnte diferencias estadísticamente significativas (α = ${a.M6_02}), ${vApl} la ${diag.postHoc.toLowerCase()}.`;
+      } else {
+        p3 = `\n\nTodas las pruebas de hipótesis se evaluarán con un nivel de significancia de α = ${a.M6_02}.`;
+      }
+
+      let p4 = ` El procesamiento estadístico ${vProc} en ${a.M6_03}.`;
+      return p1 + p2 + p3 + p4;
+    }
+
+    /* =========================================================================
+       PRODUCTO CARTESIANO PARA TABLA TIDY DATA
+       ========================================================================= */
+    function buildTidyDatasetStructure() {
+      const c = state.config;
+      const f1Key = sanitizeForR(c.factor1Name || 'tratamiento');
+      const f1Vals = parseList(c.factor1Levels, ['T0', 'T1', 'T2', 'T3']);
+      const f2Key = sanitizeForR(c.factor2Name || 'variedad');
+      const f2Vals = hasMultipleFactors() ? parseList(c.factor2Levels, ['V1', 'V2']) : [null];
+
+      const nBlocks = usesBlocks() ? Math.max(1, parseInt(c.numBlocks, 10) || 4) : 0;
+      const nReps = Math.max(1, parseInt(state.answers.M3_04, 10) || 4);
+      const nSubs = hasSubsamples() ? Math.max(1, parseInt(c.numSubsamples, 10) || 3) : 0;
+      const times = hasRepeatedMeasures() ? parseList(c.timeLabels, ['Sem1', 'Sem2', 'Sem3', 'Sem4']) : [null];
+
+      const designCols = [{ key: 'id_obs', label: 'ID Observación', unit: 'entero', type: 'Identificador', role: 'Diseño (Bloqueado)' }];
+      if (nBlocks > 0) designCols.push({ key: 'bloque', label: 'Bloque', unit: 'categórico', type: 'Factor aleatorio/bloque', role: 'Diseño (Bloqueado)' });
+      designCols.push({ key: f1Key, label: c.factor1Name || 'Tratamiento', unit: 'categórico', type: 'Factor explicativo (X)', role: 'Diseño (Bloqueado)' });
+      if (hasMultipleFactors()) designCols.push({ key: f2Key, label: c.factor2Name || 'Factor 2', unit: 'categórico', type: 'Factor explicativo (X)', role: 'Diseño (Bloqueado)' });
+      if (nBlocks === 0) designCols.push({ key: 'repeticion', label: 'Repetición', unit: 'entero', type: 'Repetición verdadera', role: 'Diseño (Bloqueado)' });
+      if (nSubs > 0) designCols.push({ key: 'submuestra', label: 'Submuestra (UO)', unit: 'entero', type: 'Unidad de observación', role: 'Diseño (Bloqueado)' });
+      if (hasRepeatedMeasures()) designCols.push({ key: 'tiempo', label: 'Tiempo de medición', unit: 'temporal', type: 'Medida repetida', role: 'Diseño (Bloqueado)' });
+
+      const yCols = (c.variablesY.length ? c.variablesY : [{ name: 'Variable Y', unit: '' }]).map(v => {
+        const base = sanitizeForR(v.name);
+        const unitClean = v.unit ? '_' + sanitizeForR(v.unit) : '';
+        return {
+          key: base + unitClean,
+          label: v.name + (v.unit ? ` (${v.unit})` : ''),
+          unit: v.unit || 'numérica',
+          type: `Variable de respuesta (${state.answers.M2_02.split(' ')[0]})`,
+          role: 'Capturar dato numérico aquí'
+        };
+      });
+
+      const rows = [];
+      let id = 1;
+      const blockIter = nBlocks > 0 ? Array.from({ length: nBlocks }, (_, i) => `B${i + 1}`) : [null];
+      const repIter = nBlocks > 0 ? [null] : Array.from({ length: nReps }, (_, i) => i + 1);
+      const subIter = nSubs > 0 ? Array.from({ length: nSubs }, (_, i) => i + 1) : [null];
+
+      outer:
+      for (const b of blockIter) {
+        for (const f1 of f1Vals) {
+          for (const f2 of f2Vals) {
+            for (const r of repIter) {
+              for (const s of subIter) {
+                for (const t of times) {
+                  const row = { id_obs: id++ };
+                  if (b !== null) row.bloque = b;
+                  row[f1Key] = f1;
+                  if (f2 !== null) row[f2Key] = f2;
+                  if (r !== null) row.repeticion = r;
+                  if (s !== null) row.submuestra = s;
+                  if (t !== null) row.tiempo = t;
+                  yCols.forEach(y => { row[y.key] = ''; });
+                  rows.push(row);
+                  if (rows.length >= 10000) break outer;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      return { designCols, yCols, allCols: [...designCols, ...yCols], rows };
+    }
+
+    function calculateTotalRows() {
+      const c = state.config;
+      const f1 = parseList(c.factor1Levels, ['T0', 'T1']).length;
+      const f2 = hasMultipleFactors() ? parseList(c.factor2Levels, ['V1', 'V2']).length : 1;
+      const bOrR = usesBlocks() ? Math.max(1, parseInt(c.numBlocks, 10) || 4) : Math.max(1, parseInt(state.answers.M3_04, 10) || 4);
+      const subs = hasSubsamples() ? Math.max(1, parseInt(c.numSubsamples, 10) || 3) : 1;
+      const t = hasRepeatedMeasures() ? parseList(c.timeLabels, ['Sem1', 'Sem2']).length : 1;
+      return f1 * f2 * bOrR * subs * t;
+    }
+
+    /* =========================================================================
+       EXPORTACIÓN DE EXCEL PROTEGIDO (3 HOJAS: Datos, Diccionario, Instrucciones)
+       ========================================================================= */
+    async function downloadProtectedExcel() {
+      try {
+        if (typeof ExcelJS === 'undefined') {
+          showToast('La librería ExcelJS aún está cargando. Intenta nuevamente en un momento.', 'warning');
+          return;
+        }
+
+        const { designCols, allCols, rows } = buildTidyDatasetStructure();
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'RStat · Rutver Aranda Arguello';
+        wb.created = new Date();
+
+        // ---------------- HOJA 1: DATOS ----------------
+        const ws = wb.addWorksheet('Datos', {
+          views: [{ state: 'frozen', ySplit: 1 }]
+        });
+
+        ws.columns = allCols.map(col => ({
+          header: col.key,
+          key: col.key,
+          width: Math.max(15, col.key.length + 5)
+        }));
+
+        const headerRow = ws.getRow(1);
+        headerRow.height = 26;
+        headerRow.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2942' } };
+          cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+            bottom: { style: 'medium', color: { argb: 'FF0F2942' } },
+            left: { style: 'thin', color: { argb: 'FF334155' } },
+            right: { style: 'thin', color: { argb: 'FF334155' } }
+          };
+          cell.protection = { locked: true };
+        });
+
+        const designCount = designCols.length;
+        rows.forEach(r => {
+          const addedRow = ws.addRow(r);
+          addedRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF1E293B' } };
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+              bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+              left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+              right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+            };
+
+            if (colNumber <= designCount) {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+              cell.alignment = { vertical: 'middle', horizontal: 'center' };
+              cell.protection = { locked: true };
+            } else {
+              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF9C3' } };
+              cell.alignment = { vertical: 'middle', horizontal: 'right' };
+              cell.protection = { locked: false };
+              cell.dataValidation = {
+                type: 'decimal',
+                operator: 'between',
+                allowBlank: true,
+                formulae: [-999999999, 999999999],
+                showErrorMessage: true,
+                errorStyle: 'stop',
+                errorTitle: 'Valor no permitido',
+                error: 'Solo se aceptan valores numéricos en las columnas de respuesta. Si el dato se perdió, deja la celda vacía (no escribas texto, guiones ni 0).'
+              };
+            }
+          });
+        });
+
+        await ws.protect('rstat2026', {
+          selectLockedCells: true,
+          selectUnlockedCells: true,
+          formatCells: false,
+          insertRows: false,
+          insertColumns: false,
+          deleteRows: false,
+          deleteColumns: false
+        });
+
+        // ---------------- HOJA 2: DICCIONARIO ----------------
+        const wsDict = wb.addWorksheet('Diccionario');
+        wsDict.columns = [
+          { header: 'Columna (Nombre limpio)', key: 'key', width: 25 },
+          { header: 'Nombre original / Descripción', key: 'label', width: 30 },
+          { header: 'Tipo de variable', key: 'type', width: 28 },
+          { header: 'Regla de captura', key: 'role', width: 34 }
+        ];
+        const dHeader = wsDict.getRow(1);
+        dHeader.height = 24;
+        dHeader.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1B5E4B' } };
+          cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        });
+        allCols.forEach(c => {
+          wsDict.addRow({ key: c.key, label: c.label, type: c.type, role: c.role });
+        });
+        wsDict.addRow([]);
+        const naNote = wsDict.addRow(['IMPORTANTE SOBRE DATOS FALTANTES:', 'Si una observación se perdió o murió la unidad experimental, deja la celda VACÍA (en blanco). Nunca escribas 0, "-", "ND" ni texto.']);
+        naNote.font = { bold: true, color: { argb: 'FF991B1B' } };
+
+        // ---------------- HOJA 3: INSTRUCCIONES ----------------
+        const wsInst = wb.addWorksheet('Instrucciones');
+        wsInst.columns = [{ header: 'Guía rápida para el estudiante · RStat', key: 'txt', width: 95 }];
+        const iHeader = wsInst.getRow(1);
+        iHeader.height = 26;
+        iHeader.eachCell(cell => {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2942' } };
+          cell.font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.alignment = { vertical: 'middle', horizontal: 'left' };
+        });
+
+        const guideLines = [
+          `Proyecto: ${state.answers.M6_04 || 'Tesis de investigación'}`,
+          `Asesor: ${ADVISOR_CONTACT.name} — ${ADVISOR_CONTACT.degree}`,
+          '',
+          '1. DÓNDE CAPTURAR: Ingresa tus mediciones únicamente en las celdas AMARILLAS de la pestaña "Datos".',
+          '2. PROTECCIÓN DE ESTRUCTURA: Las columnas grises (Diseño) y las celdas fuera del rango establecido están bloqueadas. Si intentas pegar datos fuera del rango permitido, Excel mostrará una alerta para evitar romper la tabla.',
+          '3. REVISIÓN DE TRATAMIENTOS: Si al pegar tus datos sobran o faltan filas, NO desprotejas la hoja. Regresa a RStat y verifica si te faltó declarar algún tratamiento, bloque, repetición, fecha o variable.',
+          '4. ORDEN DE FILAS: Nunca copies y pegues columnas a ciegas desde tu libreta de campo sin confirmar antes que el orden de bloques y tratamientos coincide fila por fila.',
+          '5. SOLO NÚMEROS: No incluyas unidades dentro de las celdas (escribe 24.5, no "24.5 cm").',
+          '6. DATOS FALTANTES: Celda vacía = dato faltante (NA). Cero (0) significa que mediste cero real.',
+          `7. ENVÍO AL ASESOR: Al terminar de capturar, guarda el archivo y envíalo a ${ADVISOR_CONTACT.email} o por WhatsApp al ${ADVISOR_CONTACT.whatsappDisplay}.`
+        ];
+        guideLines.forEach(line => {
+          const row = wsInst.addRow({ txt: line });
+          row.font = { name: 'Calibri', size: 11, color: { argb: 'FF1E293B' } };
+        });
+
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const safeName = sanitizeForR(state.answers.M6_04 || 'tesis_rstat');
+        link.href = url;
+        link.download = `RStat_Plantilla_${safeName}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        showToast('Plantilla Excel protegida (.xlsx) descargada con éxito.', 'success');
+      } catch (err) {
+        console.error(err);
+        showToast('Ocurrió un error al generar el archivo Excel.', 'error');
+      }
+    }
+
+    /* =========================================================================
+       GENERADOR DE SCRIPT EN R (SOLO VISIBLE TRAS DESBLOQUEAR MODO ASESOR)
+       ========================================================================= */
+    function generateRScript() {
+      const a = state.answers;
+      const diag = computeDiagnosis();
+      const { yCols } = buildTidyDatasetStructure();
+      const safeName = sanitizeForR(a.M6_04 || 'tesis_rstat');
+      const f1 = sanitizeForR(state.config.factor1Name || 'tratamiento');
+      const f2 = sanitizeForR(state.config.factor2Name || 'variedad');
+      const yMain = yCols[0] ? yCols[0].key : 'variable_y';
+
+      const libs = diag.rPackages.map(p => `library(${p})`).join('\n');
+      const factorTerm = hasMultipleFactors() ? `${f1} * ${f2}` : f1;
+      const randomTerms = [];
+      if (usesBlocks()) randomTerms.push('(1 | bloque)');
+      if (hasSubsamples()) randomTerms.push(`(1 | ${f1}:repeticion)`);
+      if (hasRepeatedMeasures()) randomTerms.push('(1 | id_obs)');
+
+      const offsetComment = (a.M4_01.includes('3 o más') && a.M4_02.startsWith('No'))
+        ? '\n# Nota: Intervalos irregulares detectados -> considerar offset(log(dias_exposicion)) y corCAR1'
+        : '';
+
+      let modelCode = '';
+      if (a.M2_02.startsWith('Conteo')) {
+        const randStr = randomTerms.length ? ` + ${randomTerms.join(' + ')}` : '';
+        modelCode = `# Ajuste GLMM / GLM para conteos${offsetComment}
+modelo <- glmmTMB(${yMain} ~ ${factorTerm}${randStr},
+                  family = nbinom2, # Evaluar poisson vs nbinom2
+                  data = datos)
+summary(modelo)
+Anova(modelo, type = "III")
+
+# Diagnóstico de residuos simulados (DHARMa)
+sim_res <- simulateResiduals(fittedModel = modelo, plot = TRUE)
+testDispersion(sim_res)
+testZeroInflation(sim_res)`;
+      } else if (a.M2_02.startsWith('Proporción') || a.M2_02.startsWith('Binaria')) {
+        const randStr = randomTerms.length ? ` + ${randomTerms.join(' + ')}` : '';
+        modelCode = `# Ajuste GLMM / GLM Binomial${offsetComment}
+modelo <- glmmTMB(${yMain} ~ ${factorTerm}${randStr},
+                  family = binomial(link = "logit"),
+                  data = datos)
+summary(modelo)
+Anova(modelo, type = "III")
+
+sim_res <- simulateResiduals(fittedModel = modelo, plot = TRUE)`;
+      } else if (randomTerms.length > 0) {
+        modelCode = `# Modelo Lineal Mixto (REML)${offsetComment}
+modelo <- lmer(${yMain} ~ ${factorTerm} + ${randomTerms.join(' + ')}, data = datos)
+anova(modelo, type = 3)
+summary(modelo)
+
+# Verificación de supuestos sobre RESIDUOS
+residuos <- residuals(modelo)
+shapiro.test(residuos)
+qqnorm(residuos); qqline(residuos, col = "red")
+plot(fitted(modelo), residuos, main = "Residuos vs Ajustados"); abline(h = 0, col = "blue")`;
+      } else {
+        modelCode = `# Modelo Lineal General (ANOVA)
+modelo <- lm(${yMain} ~ ${factorTerm}, data = datos)
+Anova(modelo, type = "III")
+
+# Verificación de supuestos sobre RESIDUOS
+residuos <- residuals(modelo)
+shapiro.test(residuos)
+leveneTest(${yMain} ~ ${f1}, data = datos)
+par(mfrow = c(2, 2)); plot(modelo); par(mfrow = c(1, 1))`;
+      }
+
+      let postHocCode = '';
+      if (a.M1_04 === 'Comparar tratamientos o grupos' && a.M6_01 !== 'Ninguna') {
+        const method = a.M6_01.includes('testigo') ? 'trt.vs.ctrl' : 'pairwise';
+        postHocCode = `
+# 5. COMPARACIONES POST-HOC (α = ${a.M6_02})
+medias_aj <- emmeans(modelo, ~ ${factorTerm}, type = "response")
+print(medias_aj)
+contrast(medias_aj, method = "${method}", adjust = "tukey")`;
+      }
+
+      return `# ==============================================================================
+# RStat · SCRIPT ESTADÍSTICO BASE (USO INTERNO DEL ASESOR)
+# Proyecto: ${a.M6_04 || 'Sin título'}
+# Diseño:   ${diag.design}
+# Modelo:   ${diag.modelPlanA}
+# ==============================================================================
+
+# 1. PAQUETES
+${libs}
+
+# 2. IMPORTACIÓN DE PLANTILLA EXCEL
+datos <- read_excel("RStat_Plantilla_${safeName}.xlsx", sheet = "Datos")
+
+datos <- datos %>%
+  mutate(
+    ${usesBlocks() ? 'bloque = as.factor(bloque),\n    ' : ''}${f1} = as.factor(${f1})${hasMultipleFactors() ? `,\n    ${f2} = as.factor(${f2})` : ''}${hasRepeatedMeasures() ? ',\n    tiempo = as.factor(tiempo)' : ''}
+  )
+
+# 3. EXPLORACIÓN
+glimpse(datos)
+summary(datos)
+
+# 4. AJUSTE DEL MODELO Y SUPUESTOS
+${modelCode}
+${postHocCode}
+`;
+    }
+
+    function downloadRScript() {
+      const code = generateRScript();
+      const safeName = sanitizeForR(state.answers.M6_04 || 'tesis_rstat');
+      const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `RStat_Script_${safeName}.R`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('Script .R descargado.', 'success');
+    }
+
+    /* =========================================================================
+       RENDERIZADO DE UI: CONTROLES Y BARRA LATERAL
+       ========================================================================= */
+    function renderRadioGroup(id, label, helper, options, extraHtmlBelow = '') {
+      const currentVal = state.answers[id];
+      return `
+        <div class="bg-white border border-cardBorder rounded-xl p-6">
+          <label class="block text-lg font-semibold text-slateDeep mb-1">${label}</label>
+          ${helper ? `<p class="text-sm text-slate-500 mb-4">${helper}</p>` : '<div class="mb-4"></div>'}
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            ${options.map(opt => {
+              const isSelected = currentVal === opt;
+              return `
+                <button type="button"
+                  onclick="selectOption('${id}', '${opt.replace(/'/g, "\\'")}')"
+                  class="option-card text-left px-4 py-3.5 rounded-lg border border-cardBorder flex items-start gap-3 ${isSelected ? 'selected' : ''}">
+                  <span class="mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${isSelected ? 'border-slateDeep bg-slateDeep' : 'border-slate-300 bg-white'}">
+                    ${isSelected ? '<span class="w-1.5 h-1.5 rounded-full bg-white"></span>' : ''}
+                  </span>
+                  <span class="text-[15px] font-medium text-ink leading-snug">${opt}</span>
+                </button>
+              `;
+            }).join('')}
+          </div>
+          ${extraHtmlBelow}
+        </div>
+      `;
+    }
+
+    function renderSidebar() {
+      const nav = document.getElementById('sidebar-nav');
+      const step = state.currentStep;
+      const pct = Math.min(100, Math.round((Math.min(step, 7) / 7) * 100));
+      document.getElementById('progress-text').textContent = step <= 7 ? `${step} / 7` : 'Completado';
+      document.getElementById('progress-bar').style.width = step <= 7 ? `${pct}%` : '100%';
+
+      nav.innerHTML = MODULES.map(m => {
+        const isActive = step === m.id;
+        const isDone = step > m.id;
+        return `
+          <button type="button" onclick="goToStep(${m.id})"
+            class="w-full text-left px-3 py-2.5 rounded-lg flex items-center gap-3 transition-colors ${isActive ? 'bg-slateDeep text-white font-semibold' : 'text-slate-700 hover:bg-slate-100'}">
+            <span class="w-6 h-6 rounded-full text-xs flex items-center justify-center shrink-0 font-semibold ${
+              isActive ? 'bg-white text-slateDeep' : isDone ? 'bg-forest text-white' : 'bg-slate-200 text-slate-600'
+            }">
+              ${isDone ? '✓' : (m.id === 8 ? '★' : m.id)}
+            </span>
+            <span class="text-sm truncate">${m.short}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    /* =========================================================================
+       RENDERIZADO DE LOS 7 MÓDULOS Y PANTALLA DE RESULTADOS
+       ========================================================================= */
+    function renderCurrentView() {
+      renderSidebar();
+      const container = document.getElementById('main-content');
+      const step = state.currentStep;
+      const modInfo = MODULES.find(m => m.id === step);
+
+      if (step === 8) {
+        container.innerHTML = renderResultsView(modInfo);
+        return;
+      }
+
+      let bodyHtml = '';
+
+      // MÓDULO 1
+      if (step === 1) {
+        bodyHtml += renderRadioGroup('M1_01', '¿Cuál es el nivel académico de tu tesis?', 'Calibra el nivel de rigor estadístico esperado.', ['Licenciatura', 'Maestría', 'Doctorado']);
+        bodyHtml += renderRadioGroup('M1_02', '¿En qué etapa se encuentra tu investigación?', 'Adapta la redacción metodológica a tiempo futuro o pasado.', ['Anteproyecto (sin datos)', 'Análisis de resultados (ya tengo datos)']);
+        bodyHtml += renderRadioGroup('M1_03', '¿Cuál es el enfoque principal de tu estudio?', 'Define si existe manipulación activa de tratamientos y aleatorización.', ['Experimental', 'Cuasi-experimental', 'Observacional']);
+        bodyHtml += renderRadioGroup('M1_04', '¿Cuál es tu objetivo estadístico principal?', 'Determina la familia de modelos base.', [
+          'Comparar tratamientos o grupos',
+          'Evaluar relación o correlación',
+          'Predecir una respuesta',
+          'Agrupar o clasificar',
+          'Analizar tiempo al evento (supervivencia)'
+        ]);
+      }
+
+      // MÓDULO 2
+      if (step === 2) {
+        const m2Help = `
+          <div class="mt-4 bg-paper border border-cardBorder rounded-lg p-4 text-sm text-slate-700 space-y-2">
+            <div class="font-semibold text-slateDeep text-xs uppercase tracking-wider">¿Cuál elegir? Guía rápida con ejemplos</div>
+            <p><strong class="text-forest">Univariado:</strong> aunque midas varias variables en tu tesis (ej. <em>altura, peso y rendimiento</em>), cada una se analiza en un modelo independiente. Es la opción correcta en el 90% de los ensayos agronómicos y experimentales.</p>
+            <p><strong class="text-slateDeep">Multivariado:</strong> todas las variables entran juntas en un solo análisis para evaluar perfiles o similitud global (ej. <em>15 compuestos químicos</em> o <em>abundancia conjunta de 10 especies de insectos</em>).</p>
+          </div>
+        `;
+        bodyHtml += renderRadioGroup('M2_01', '¿Cómo analizarás tus variables de respuesta (Y)?', '', ['Una a la vez (Univariado)', 'Varias simultáneamente (Multivariado)'], m2Help);
+        bodyHtml += renderRadioGroup('M2_02', '¿Cuál es la naturaleza de tu variable de respuesta principal (Y)?', 'Filtro crítico para definir la distribución teórica.', [
+          'Continua (peso, altura, rendimiento)',
+          'Conteo (n.° de insectos, frutos)',
+          'Proporción o porcentaje (mortalidad, germinación)',
+          'Binaria (sí-no, vivo-muerto)',
+          'Ordinal (escalas de daño 1-5)',
+          'Nominal (categorías sin orden)'
+        ]);
+        bodyHtml += renderRadioGroup('M2_03', '¿Qué tipo de variables explicativas o factores (X) tienes?', '', ['Solo categóricas', 'Solo continuas', 'Mixtas']);
+        if (hasCategoricalX()) {
+          bodyHtml += renderRadioGroup('M2_04', '¿Cuántos factores categóricos evalúas simultáneamente?', '', ['1 factor', '2 factores', '3 o más factores']);
+        }
+        if (isExperimental()) {
+          bodyHtml += renderRadioGroup('M2_05', '¿Tu experimento incluye un tratamiento testigo o control?', '', ['Sí', 'No']);
+        }
+        bodyHtml += renderRadioGroup('M2_06', '¿Cómo consideras el efecto de tus factores?', '', [
+          'Todos fijos',
+          'Mixtos (fijos + aleatorios como bloques, lotes o localidades)'
+        ]);
+      }
+
+      // MÓDULO 3
+      if (step === 3) {
+        if (isExperimental()) {
+          bodyHtml += renderRadioGroup('M3_01', '¿Las condiciones del sitio o material experimental son homogéneas?', 'Determina la necesidad de bloques para controlar gradientes.', [
+            'Homogéneo (DCA)',
+            '1 fuente de variación (DBCA)',
+            '2 fuentes perpendiculares (Cuadrado Latino)'
+          ]);
+          if (hasMultipleFactors()) {
+            bodyHtml += renderRadioGroup('M3_02', '¿Cómo se aleatorizan tus factores?', '', [
+              'Todos al azar (Factorial)',
+              'Restricción en unidades grandes (Parcelas Divididas / Split-Plot)',
+              'Factor anidado dentro de otro'
+            ]);
+          }
+          bodyHtml += renderRadioGroup('M3_03', 'Unidad Experimental (UE) vs. Unidad de Observación (UO)', 'Identifica qué recibe físicamente el tratamiento frente a sobre qué se mide el dato.', [
+            'Coinciden en la misma unidad (ej. aplico a 1 planta o 1 ha y mido esa misma unidad)',
+            'Aplico a un grupo y mido varios individuos dentro de él (ej. aplico a 1 parcela y mido 10 plantas)'
+          ]);
+          // M3_04: Campo numérico entero directo sincronizado con Módulo 7
+          bodyHtml += `
+            <div class="bg-white border border-cardBorder rounded-xl p-6">
+              <label for="input-m3-04" class="block text-lg font-semibold text-slateDeep mb-1">¿Cuántas repeticiones verdaderas (r) tienes por tratamiento?</label>
+              <p class="text-sm text-slate-500 mb-4">Ingresa el número entero exacto. Este valor se sincronizará automáticamente con tu plantilla de Excel en el Módulo 7.</p>
+              <div class="flex items-center gap-4">
+                <input id="input-m3-04" type="number" min="1" max="50" value="${state.answers.M3_04}"
+                  oninput="updateRepsSynced(this.value)"
+                  class="w-32 px-4 py-2.5 rounded-lg border border-slate-300 text-lg font-semibold text-slateDeep focus:outline-none focus:border-slateDeep" />
+                <span class="text-sm text-slate-600">repeticiones verdaderas por tratamiento (mín. 1, máx. 50)</span>
+              </div>
+            </div>
+          `;
+        } else {
+          bodyHtml += renderRadioGroup('M3_05', '¿Cómo seleccionaste tus unidades de muestreo?', 'Al ser un estudio observacional, se omite la aleatorización de tratamientos.', [
+            'Aleatorio simple',
+            'Sistemático',
+            'Estratificado',
+            'Por conglomerados',
+            'Por conveniencia'
+          ]);
+        }
+        bodyHtml += renderRadioGroup('M3_06', '¿Tus datos están balanceados?', 'Mismo número de observaciones en todos los tratamientos o grupos.', [
+          'Sí, totalmente balanceado',
+          'No, hay datos faltantes o desbalanceo'
+        ]);
+      }
+
+      // MÓDULO 4
+      if (step === 4) {
+        const m4Note = `
+          <div class="mt-4 bg-slate-50 border-l-4 border-slateDeep rounded-r-lg p-3.5 text-sm text-slate-700">
+            <strong class="text-slateDeep">Nota importante:</strong> aunque renueves trampas, cebos o difusores de feromona cada mes, si el punto físico o la parcela evaluada es la misma, sigue siendo un diseño de <strong>Medidas Repetidas</strong> (existe autocorrelación temporal).
+          </div>
+        `;
+        bodyHtml += renderRadioGroup('M4_01', '¿Mides la misma unidad experimental varias veces a lo largo del tiempo?', '', [
+          'No, solo una medición',
+          'Sí, 2 veces (antes-después)',
+          'Sí, 3 o más veces (seguimiento temporal)'
+        ], m4Note);
+
+        if (state.answers.M4_01.includes('3 o más')) {
+          const m402Note = state.answers.M4_02.startsWith('No') ? `
+            <div class="mt-4 bg-amberBg border border-amber-300 rounded-lg p-3.5 text-sm text-amberText">
+              <strong>Recomendación técnica para intervalos irregulares:</strong> utiliza una estructura de autocorrelación temporal continua (<code class="font-mono text-xs bg-white/70 px-1 rounded">corCAR1</code>) y, en conteos de trampeo, incluye <code class="font-mono text-xs bg-white/70 px-1 rounded">offset(log(dias_exposicion))</code> para modelar capturas por día de exposición.
+            </div>
+          ` : '';
+          bodyHtml += renderRadioGroup('M4_02', '¿Los intervalos entre mediciones son iguales?', '', [
+            'Sí, ej. cada 7 días',
+            'No, intervalos irregulares'
+          ], m402Note);
+        }
+
+        bodyHtml += renderRadioGroup('M4_03', '¿Tus unidades tienen coordenadas geográficas y proximidad física relevante?', '', [
+          'No aplica',
+          'Sí, en campo aleatorizadas en bloques',
+          'Sí, quiero analizar patrones o mapas de distribución'
+        ]);
+        bodyHtml += renderRadioGroup('M4_04', '¿Tu experimento se repite en múltiples sitios o ciclos?', '', [
+          'No, un solo sitio y ciclo',
+          'Sí, varios sitios o ciclos'
+        ]);
+      }
+
+      // MÓDULO 5
+      if (step === 5) {
+        if (state.answers.M2_02.startsWith('Conteo') || state.answers.M2_02.startsWith('Proporción')) {
+          bodyHtml += renderRadioGroup('M5_01', '¿Esperas o observas un exceso de ceros en tus datos?', 'Ej. muchas trampas o parcelas con valor igual a 0.', ['No', 'Sí, muchos ceros', 'No lo sé']);
+        }
+        bodyHtml += renderRadioGroup('M5_02', 'Si al correr el modelo fallan los supuestos clásicos en residuos, ¿qué Plan B prefieres incluir en tu metodología?', 'Los supuestos se verifican sobre los residuos del modelo ajustado, nunca sobre los datos crudos.', [
+          'GLM (recomendado)',
+          'Transformación de datos',
+          'Pruebas no paramétricas',
+          'Que la app elija la mejor ruta'
+        ]);
+      }
+
+      // MÓDULO 6
+      if (step === 6) {
+        if (state.answers.M1_04 === 'Comparar tratamientos o grupos') {
+          bodyHtml += renderRadioGroup('M6_01', 'Si hay diferencias significativas, ¿qué comparaciones post-hoc necesitas?', '', [
+            'Todos contra todos',
+            'Todos contra un testigo',
+            'Contrastes planificados',
+            'Curva de respuesta cuantitativa',
+            'Ninguna'
+          ]);
+        }
+        bodyHtml += renderRadioGroup('M6_02', '¿Qué nivel de significancia (α) establecerás?', '', ['0.05', '0.01', '0.10']);
+        bodyHtml += renderRadioGroup('M6_03', '¿Qué software estadístico prefieres?', '', ['R / RStudio', 'Python', 'InfoStat', 'SAS', 'SPSS', 'Jamovi', 'Otro']);
+        bodyHtml += `
+          <div class="bg-white border border-cardBorder rounded-xl p-6">
+            <label for="input-m6-04" class="block text-lg font-semibold text-slateDeep mb-1">Nombre o título breve del proyecto o tesis (opcional)</label>
+            <p class="text-sm text-slate-500 mb-3">Se utilizará para personalizar el nombre de tu archivo Excel y el borrador metodológico.</p>
+            <input id="input-m6-04" type="text" value="${state.answers.M6_04}" oninput="state.answers.M6_04 = this.value"
+              placeholder="Ej. Evaluación de dosis de fertilización en café robusta"
+              class="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-slateDeep text-ink" />
+          </div>
+        `;
+      }
+
+      // MÓDULO 7
+      if (step === 7) {
+        bodyHtml += renderModule7Form();
+      }
+
+      const modAlerts = getActiveAlerts(step);
+      const alertsHtml = modAlerts.length ? `<div class="space-y-3 mt-6">${modAlerts.map(renderAlertBox).join('')}</div>` : '';
+
+      container.innerHTML = `
+        <div class="mb-7">
+          <p class="text-xs font-semibold uppercase tracking-wider text-forest mb-1.5">Paso ${step} de 7</p>
+          <h2 class="font-serif text-3xl font-bold text-slateDeep tracking-tight">${modInfo.title}</h2>
+          <p class="text-slate-600 mt-1.5 text-base">${modInfo.desc}</p>
+        </div>
+
+        <div class="space-y-5">${bodyHtml}</div>
+        ${alertsHtml}
+
+        <div class="mt-10 pt-6 border-t border-cardBorder flex items-center justify-between gap-4">
+          <button type="button" onclick="goToStep(${step - 1})"
+            class="px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-700 font-medium hover:bg-slate-50 transition-colors ${step === 1 ? 'invisible' : ''}">
+            ← Anterior
+          </button>
+          <button type="button" onclick="goToStep(${step + 1})"
+            class="px-6 py-2.5 rounded-lg bg-slateDeep text-white font-semibold hover:bg-slate-800 transition-colors">
+            ${step === 7 ? 'Ver Diagnóstico y Entregables →' : 'Siguiente →'}
+          </button>
+        </div>
+      `;
+    }
+
+    function renderModule7Form() {
+      const c = state.config;
+      const totalRows = calculateTotalRows();
+      return `
+        <div class="bg-white border border-cardBorder rounded-xl p-6 space-y-6">
+          <!-- Factor 1 -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-slateDeep mb-1.5">Nombre del Factor 1</label>
+              <input type="text" value="${c.factor1Name}" oninput="updateConfig('factor1Name', this.value)"
+                class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-slateDeep" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slateDeep mb-1.5">Niveles del Factor 1 (separados por coma)</label>
+              <input type="text" value="${c.factor1Levels}" oninput="updateConfig('factor1Levels', this.value)"
+                class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-slateDeep" />
+            </div>
+          </div>
+
+          <!-- Factor 2 -->
+          ${hasMultipleFactors() ? `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+              <div>
+                <label class="block text-sm font-semibold text-slateDeep mb-1.5">Nombre del Factor 2</label>
+                <input type="text" value="${c.factor2Name}" oninput="updateConfig('factor2Name', this.value)"
+                  class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-slateDeep" />
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-slateDeep mb-1.5">Niveles del Factor 2 (separados por coma)</label>
+                <input type="text" value="${c.factor2Levels}" oninput="updateConfig('factor2Levels', this.value)"
+                  class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-slateDeep" />
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Bloques, Repeticiones sincronizadas, Submuestras, Tiempos -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+            ${usesBlocks() ? `
+              <div>
+                <label class="block text-sm font-semibold text-slateDeep mb-1.5">Número de bloques</label>
+                <input type="number" min="1" max="50" value="${c.numBlocks}" oninput="updateConfig('numBlocks', this.value)"
+                  class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-slateDeep" />
+              </div>
+            ` : ''}
+
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-sm font-semibold text-slateDeep">Repeticiones por tratamiento</label>
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-forest border border-emerald-200">Sincronizado desde Módulo 3</span>
+              </div>
+              <input type="number" min="1" max="50" value="${state.answers.M3_04}" oninput="updateRepsSynced(this.value, true)"
+                class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-slateDeep" />
+            </div>
+
+            ${hasSubsamples() ? `
+              <div>
+                <label class="block text-sm font-semibold text-slateDeep mb-1.5">Submuestras por UE</label>
+                <input type="number" min="1" max="50" value="${c.numSubsamples}" oninput="updateConfig('numSubsamples', this.value)"
+                  class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-slateDeep" />
+              </div>
+            ` : ''}
+
+            ${hasRepeatedMeasures() ? `
+              <div>
+                <label class="block text-sm font-semibold text-slateDeep mb-1.5">Etiquetas de tiempo (separadas por coma)</label>
+                <input type="text" value="${c.timeLabels}" oninput="updateConfig('timeLabels', this.value)" placeholder="Sem1, Sem2, Sem3, Sem4"
+                  class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-slateDeep" />
+              </div>
+            ` : ''}
+          </div>
+
+          <!-- Variables Y dinámicas -->
+          <div class="pt-4 border-t border-cardBorder">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <h3 class="text-base font-semibold text-slateDeep">Variables de respuesta (Y)</h3>
+                <p class="text-xs text-slate-500">Se limpian automáticamente para la hoja Datos y se conserva el nombre original en Diccionario.</p>
+              </div>
+              <button type="button" onclick="addVariableY()" class="px-3 py-1.5 rounded-md bg-forest text-white text-xs font-semibold hover:bg-emerald-900">
+                + Agregar variable
+              </button>
+            </div>
+            <div class="space-y-2.5" id="vars-y-list">
+              ${c.variablesY.map((v, idx) => {
+                const clean = sanitizeForR(v.name) + (v.unit ? '_' + sanitizeForR(v.unit) : '');
+                return `
+                  <div class="grid grid-cols-12 gap-2.5 items-center bg-paper p-2.5 rounded-lg border border-cardBorder">
+                    <div class="col-span-5">
+                      <input type="text" value="${v.name}" oninput="updateVarY(${idx}, 'name', this.value)" placeholder="Nombre (ej. Altura)"
+                        class="w-full px-3 py-2 text-sm rounded border border-slate-300 bg-white" />
+                    </div>
+                    <div class="col-span-3">
+                      <input type="text" value="${v.unit}" oninput="updateVarY(${idx}, 'unit', this.value)" placeholder="Unidad (cm)"
+                        class="w-full px-3 py-2 text-sm rounded border border-slate-300 bg-white" />
+                    </div>
+                    <div class="col-span-3 font-mono text-xs text-slate-600 truncate" title="${clean}">→ ${clean}</div>
+                    <div class="col-span-1 text-right">
+                      ${c.variablesY.length > 1 ? `<button type="button" onclick="removeVarY(${idx})" class="text-slate-400 hover:text-brickRed font-bold px-1.5" title="Eliminar">×</button>` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- Contador en vivo -->
+          <div class="bg-paper border border-cardBorder rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <span class="text-sm font-semibold text-slateDeep">Total de filas a generar en Excel (Producto cartesiano):</span>
+              <p class="text-xs text-slate-500">Todas las combinaciones de diseño quedarán prellenadas y protegidas.</p>
+            </div>
+            <div id="live-n-count" class="text-2xl font-serif font-bold text-forest shrink-0">N = ${totalRows} filas</div>
+          </div>
+        </div>
+      `;
+    }
+
+    /* =========================================================================
+       PANTALLA DE RESULTADOS (4 PESTAÑAS)
+       ========================================================================= */
+    function renderResultsView(modInfo) {
+      const tab = state.activeResultTab;
+      const diag = computeDiagnosis();
+      const allAlerts = getActiveAlerts();
+      const { designCols, allCols, rows } = buildTidyDatasetStructure();
+
+      const tabs = [
+        { id: 'diagnostico', label: '1. Diagnóstico y Alertas' },
+        { id: 'metodologia', label: '2. Borrador Metodológico' },
+        { id: 'excel', label: '3. Plantilla Excel (.xlsx)' },
+        { id: 'asesor', label: '4. Envío y Espacio del Asesor' }
+      ];
+
+      let tabContent = '';
+
+      // TAB 1: DIAGNÓSTICO Y ALERTAS
+      if (tab === 'diagnostico') {
+        tabContent = `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-white border border-cardBorder rounded-xl p-5">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Diseño Experimental Identificado</span>
+              <h3 class="font-serif text-xl font-bold text-slateDeep mt-1">${diag.design}</h3>
+              <p class="text-sm text-slate-600 mt-3"><strong>Post-hoc:</strong> ${diag.postHoc}</p>
+              <p class="text-sm text-slate-600 mt-1"><strong>Nivel de significancia:</strong> α = ${state.answers.M6_02}</p>
+            </div>
+            <div class="bg-white border border-cardBorder rounded-xl p-5">
+              <span class="text-xs font-semibold uppercase tracking-wider text-forest">Modelo Estadístico (Plan A)</span>
+              <h3 class="font-serif text-xl font-bold text-ink mt-1">${diag.modelPlanA}</h3>
+              <div class="font-mono text-xs bg-paper border border-cardBorder rounded px-3 py-2 mt-3 text-slateDeep overflow-x-auto">${diag.formulaMath}</div>
+            </div>
+          </div>
+
+          <div class="bg-white border border-cardBorder rounded-xl p-5 mt-4">
+            <h4 class="font-semibold text-slateDeep mb-1">Plan B (Protocolo de contingencia)</h4>
+            <p class="text-sm text-slate-700 leading-relaxed">${diag.modelPlanB}</p>
+          </div>
+
+          <div class="bg-white border border-cardBorder rounded-xl p-5 mt-4">
+            <h4 class="font-semibold text-slateDeep mb-3">Checklist obligatorio de supuestos sobre RESIDUOS</h4>
+            <ul class="space-y-2 text-sm text-slate-700">
+              <li class="flex items-start gap-2.5"><span class="text-forest font-bold">1.</span><span><strong>Normalidad de residuos:</strong> Prueba de Shapiro-Wilk y gráfico Q-Q sobre los residuos del modelo ajustado (nunca sobre datos crudos).</span></li>
+              <li class="flex items-start gap-2.5"><span class="text-forest font-bold">2.</span><span><strong>Homogeneidad de varianzas:</strong> Prueba de Levene o Bartlett y gráfico de Residuos vs. Valores Ajustados.</span></li>
+              <li class="flex items-start gap-2.5"><span class="text-forest font-bold">3.</span><span><strong>En modelos GLM/GLMM:</strong> Verificar sobredispersión e inflación de ceros mediante residuos simulados (<code class="font-mono text-xs bg-slate-100 px-1 rounded">DHARMa</code>).</span></li>
+            </ul>
+          </div>
+
+          <div class="mt-5">
+            <h4 class="font-semibold text-slateDeep mb-3">Alertas pedagógicas disparadas (${allAlerts.length})</h4>
+            ${allAlerts.length
+              ? `<div class="space-y-3">${allAlerts.map(renderAlertBox).join('')}</div>`
+              : `<div class="bg-emerald-50 border border-emerald-200 text-forest rounded-lg p-4 text-sm">No se detectaron alertas críticas en la configuración actual de tu diseño.</div>`
+            }
+          </div>
+        `;
+      }
+
+      // TAB 2: BORRADOR METODOLÓGICO
+      if (tab === 'metodologia') {
+        const text = generateMethodologyText();
+        tabContent = `
+          <div class="bg-white border border-cardBorder rounded-xl p-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-4 border-b border-cardBorder">
+              <div>
+                <h3 class="font-serif text-xl font-bold text-slateDeep">Apartado: Diseño experimental y análisis estadístico</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Redactado en tiempo ${state.answers.M1_02.startsWith('Anteproyecto') ? 'futuro (Anteproyecto)' : 'pasado (Resultados)'}.</p>
+              </div>
+              <button type="button" onclick="copyTextToClipboard(document.getElementById('methodology-text').innerText, 'Borrador metodológico copiado')"
+                class="px-4 py-2 rounded-lg bg-slateDeep text-white text-sm font-semibold hover:bg-slate-800 shrink-0">
+                Copiar texto
+              </button>
+            </div>
+            <div id="methodology-text" class="whitespace-pre-line font-serif text-[16.5px] leading-relaxed text-ink bg-paper p-6 rounded-lg border border-cardBorder">${text}</div>
+          </div>
+        `;
+      }
+
+      // TAB 3: PLANTILLA EXCEL (.XLSX)
+      if (tab === 'excel') {
+        const previewRows = rows.slice(0, 8);
+        tabContent = `
+          <div class="bg-white border border-cardBorder rounded-xl p-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-cardBorder">
+              <div>
+                <h3 class="font-serif text-xl font-bold text-slateDeep">Plantilla Excel Protegida (3 Hojas)</h3>
+                <p class="text-sm text-slate-600 mt-1"><strong>${rows.length} filas</strong> prellenadas · Columnas de diseño bloqueadas en gris, variables Y editables en amarillo.</p>
+              </div>
+              <button type="button" onclick="downloadProtectedExcel()"
+                class="px-5 py-3 rounded-lg bg-forest text-white text-sm font-semibold hover:bg-emerald-900 shrink-0">
+                Descargar Plantilla Excel (.xlsx)
+              </button>
+            </div>
+
+            <div class="mt-5 bg-amberBg border border-amber-300 rounded-lg p-4 text-sm text-amberText space-y-1.5">
+              <div class="font-semibold">Importante antes de capturar tus datos:</div>
+              <p>• No copies y pegues columnas a ciegas desde tu libreta de campo sin verificar antes que el orden de bloques y tratamientos coincide fila por fila.</p>
+              <p>• La hoja <strong>Datos</strong> está protegida para evitar pegar valores fuera del rango amarillo. Si Excel bloquea el pegado, revisa si te faltaron tratamientos, repeticiones o variables en el Módulo 7.</p>
+            </div>
+
+            <div class="mt-5 overflow-x-auto border border-cardBorder rounded-lg">
+              <table class="w-full text-sm text-left border-collapse">
+                <thead>
+                  <tr class="bg-slateDeep text-white">
+                    ${allCols.map(c => `<th class="px-3.5 py-2.5 font-mono text-xs font-semibold whitespace-nowrap border-r border-slate-700 last:border-r-0">${c.key}</th>`).join('')}
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                  ${previewRows.map(r => `
+                    <tr>
+                      ${allCols.map((c, idx) => {
+                        const isDesign = idx < designCols.length;
+                        return `<td class="px-3.5 py-2 whitespace-nowrap border-r border-slate-200 last:border-r-0 ${isDesign ? 'bg-slate-50 text-slate-700 font-medium' : 'bg-yellow-50/80 text-slate-400 italic'}">${isDesign ? r[c.key] : '(capturar)'}</td>`;
+                      }).join('')}
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <p class="text-xs text-slate-500 mt-2.5">Vista previa de ${previewRows.length} de ${rows.length} filas. El archivo descargable incluye las hojas <strong>Datos</strong>, <strong>Diccionario</strong> e <strong>Instrucciones</strong>.</p>
+          </div>
+        `;
+      }
+
+      // TAB 4: ENVÍO Y ESPACIO DEL ASESOR (SIN MENCIONAR CÓDIGO NI R EN TÍTULO NI EN ESTADO BLOQUEADO)
+      if (tab === 'asesor') {
+        const waUrl = `https://wa.me/${ADVISOR_CONTACT.whatsappNumber}?text=${encodeURIComponent('Hola Dr. Rutver, le envío mi base de datos de tesis generada en RStat.')}`;
+
+        const advisorBlockB = !state.advisorUnlocked
+          ? `
+            <div class="bg-white border border-cardBorder rounded-xl p-7 mt-6">
+              <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div class="w-11 h-11 rounded-lg bg-slate-100 text-slateDeep flex items-center justify-center shrink-0">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <h4 class="font-serif text-lg font-bold text-slateDeep">Acceso Reservado para el Asesor de Investigación</h4>
+                  <p class="text-sm text-slate-500">Área exclusiva para revisión y herramientas internas del asesor.</p>
+                </div>
+              </div>
+              <form onsubmit="unlockAdvisor(event)" class="mt-5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 max-w-md">
+                <input id="advisor-pin-input" type="password" placeholder="Contraseña / PIN de acceso" maxlength="12"
+                  class="flex-1 px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-sm focus:outline-none focus:border-slateDeep" />
+                <button type="submit" class="px-5 py-2.5 rounded-lg bg-slateDeep text-white text-sm font-semibold hover:bg-slate-800 shrink-0">
+                  Acceder
+                </button>
+              </form>
+            </div>
+          `
+          : `
+            <div class="bg-white border border-cardBorder rounded-xl p-6 mt-6">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-cardBorder">
+                <div>
+                  <span class="text-xs font-semibold uppercase tracking-wider text-forest">Sesión de Asesor Activa</span>
+                  <h4 class="font-serif text-xl font-bold text-slateDeep">Herramientas del Asesor</h4>
+                </div>
+                <button type="button" onclick="lockAdvisor()" class="text-xs font-medium text-slate-500 hover:text-brickRed underline self-start sm:self-auto">
+                  Bloquear panel
+                </button>
+              </div>
+
+              <!-- Sub-pestañas escalables para herramientas del asesor -->
+              <div class="flex gap-2 mt-4 mb-5">
+                <button type="button" onclick="setAdvisorTool('rscript')"
+                  class="px-3.5 py-1.5 rounded-md text-xs font-semibold ${state.activeAdvisorTool === 'rscript' ? 'bg-slateDeep text-white' : 'bg-paper text-slate-600 border border-cardBorder'}">
+                  Script Estadístico en R
+                </button>
+                <button type="button" onclick="setAdvisorTool('futuras')"
+                  class="px-3.5 py-1.5 rounded-md text-xs font-semibold ${state.activeAdvisorTool === 'futuras' ? 'bg-slateDeep text-white' : 'bg-paper text-slate-600 border border-cardBorder'}">
+                  Módulos adicionales (+)
+                </button>
+              </div>
+
+              ${state.activeAdvisorTool === 'rscript' ? `
+                <div>
+                  <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <p class="text-xs text-slate-500">Generado dinámicamente con las columnas exactas del Módulo 7 y el modelo Plan A.</p>
+                    <div class="flex gap-2">
+                      <button type="button" onclick="copyTextToClipboard(document.getElementById('r-code-block').innerText, 'Script R copiado')"
+                        class="px-3.5 py-1.5 rounded-md border border-slate-300 bg-white text-slateDeep text-xs font-semibold hover:bg-slate-50">
+                        Copiar Script
+                      </button>
+                      <button type="button" onclick="downloadRScript()"
+                        class="px-3.5 py-1.5 rounded-md bg-slateDeep text-white text-xs font-semibold hover:bg-slate-800">
+                        Descargar .R
+                      </button>
+                    </div>
+                  </div>
+                  <pre id="r-code-block" class="bg-slate-900 text-slate-100 font-mono text-xs sm:text-[13px] p-5 rounded-lg overflow-x-auto leading-relaxed">${generateRScript().replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+                </div>
+              ` : `
+                <div class="bg-paper border border-dashed border-slate-300 rounded-lg p-6 text-center text-sm text-slate-600">
+                  Espacio modular preparado para integrar nuevas herramientas internas de asesoría (ej. auditoría de bases de datos, cálculo de tamaño de muestra o plantillas de reporte).
+                </div>
+              `}
+            </div>
+          `;
+
+        tabContent = `
+          <!-- Bloque A: Visible para el estudiante -->
+          <div class="bg-white border border-cardBorder rounded-xl p-6">
+            <span class="text-xs font-semibold uppercase tracking-wider text-forest">Envío de Base de Datos y Contacto</span>
+            <h3 class="font-serif text-2xl font-bold text-slateDeep mt-1">${ADVISOR_CONTACT.name}</h3>
+            <p class="text-sm font-medium text-slate-600">${ADVISOR_CONTACT.degree}</p>
+
+            <p class="text-sm text-slate-700 mt-4 leading-relaxed bg-paper border border-cardBorder rounded-lg p-4">
+              ${ADVISOR_CONTACT.instructions}
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
+              <div class="border border-cardBorder rounded-lg p-4 flex items-center justify-between gap-3">
+                <div>
+                  <span class="text-xs text-slate-500 block">Correo electrónico</span>
+                  <span class="text-sm font-semibold text-slateDeep break-all">${ADVISOR_CONTACT.email}</span>
+                </div>
+                <a href="mailto:${ADVISOR_CONTACT.email}?subject=Base%20de%20datos%20RStat" class="px-3 py-1.5 rounded-md bg-slateDeep text-white text-xs font-semibold hover:bg-slate-800 shrink-0">
+                  Escribir
+                </a>
+              </div>
+
+              <div class="border border-cardBorder rounded-lg p-4 flex items-center justify-between gap-3">
+                <div>
+                  <span class="text-xs text-slate-500 block">WhatsApp</span>
+                  <span class="text-sm font-semibold text-slateDeep">${ADVISOR_CONTACT.whatsappDisplay}</span>
+                </div>
+                <a href="${waUrl}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-md bg-forest text-white text-xs font-semibold hover:bg-emerald-900 shrink-0">
+                  Enviar WhatsApp
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bloque B: Espacio reservado para el asesor -->
+          ${advisorBlockB}
+        `;
+      }
+
+      return `
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-forest mb-1">Diagnóstico Finalizado</p>
+            <h2 class="font-serif text-3xl font-bold text-slateDeep tracking-tight">${modInfo.title}</h2>
+          </div>
+          <button type="button" onclick="goToStep(7)" class="text-sm font-medium text-slateDeep hover:underline self-start sm:self-auto">
+            ← Editar tratamientos o variables
+          </button>
+        </div>
+
+        <div class="flex flex-wrap gap-2 border-b border-cardBorder mb-6 pb-3">
+          ${tabs.map(t => `
+            <button type="button" onclick="setResultTab('${t.id}')"
+              class="px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                tab === t.id ? 'bg-slateDeep text-white' : 'bg-white border border-cardBorder text-slate-700 hover:bg-slate-50'
+              }">
+              ${t.label}
+            </button>
+          `).join('')}
+        </div>
+
+        <div>${tabContent}</div>
+      `;
+    }
+
+    /* =========================================================================
+       MANEJADORES DE EVENTOS
+       ========================================================================= */
+    window.selectOption = function(id, value) {
+      state.answers[id] = value;
+      renderCurrentView();
+    };
+
+    window.updateRepsSynced = function(val, fromMod7 = false) {
+      let n = parseInt(val, 10);
+      if (isNaN(n) || n < 1) n = 1;
+      if (n > 50) n = 50;
+      state.answers.M3_04 = n;
+      if (fromMod7) {
+        const nEl = document.getElementById('live-n-count');
+        if (nEl) nEl.textContent = `N = ${calculateTotalRows()} filas`;
+      } else {
+        renderCurrentView();
+        const inp = document.getElementById('input-m3-04');
+        if (inp) inp.focus();
+      }
+    };
+
+    window.goToStep = function(step) {
+      if (step < 1 || step > 8) return;
+      state.currentStep = step;
+      closeMobileMenu();
+      renderCurrentView();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.setResultTab = function(tabId) {
+      state.activeResultTab = tabId;
+      renderCurrentView();
+    };
+
+    window.setAdvisorTool = function(toolId) {
+      state.activeAdvisorTool = toolId;
+      renderCurrentView();
+    };
+
+    window.updateConfig = function(key, val) {
+      state.config[key] = val;
+      const nEl = document.getElementById('live-n-count');
+      if (nEl) nEl.textContent = `N = ${calculateTotalRows()} filas`;
+    };
+
+    window.addVariableY = function() {
+      state.config.variablesY.push({ name: 'Nueva variable', unit: '' });
+      renderCurrentView();
+    };
+
+    window.removeVarY = function(idx) {
+      state.config.variablesY.splice(idx, 1);
+      renderCurrentView();
+    };
+
+    window.updateVarY = function(idx, field, val) {
+      state.config.variablesY[idx][field] = val;
+      const listEl = document.getElementById('vars-y-list');
+      if (listEl && listEl.children[idx]) {
+        const v = state.config.variablesY[idx];
+        const clean = sanitizeForR(v.name) + (v.unit ? '_' + sanitizeForR(v.unit) : '');
+        const codeCell = listEl.children[idx].querySelector('.font-mono');
+        if (codeCell) {
+          codeCell.textContent = `→ ${clean}`;
+          codeCell.title = clean;
+        }
+      }
+    };
+
+    window.unlockAdvisor = function(e) {
+      e.preventDefault();
+      const input = document.getElementById('advisor-pin-input');
+      if (input && input.value.trim() === ADVISOR_PIN) {
+        state.advisorUnlocked = true;
+        showToast('Acceso de asesor concedido.', 'success');
+        renderCurrentView();
+      } else {
+        showToast('Contraseña incorrecta.', 'error');
+      }
+    };
+
+    window.lockAdvisor = function() {
+      state.advisorUnlocked = false;
+      renderCurrentView();
+      showToast('Panel del asesor bloqueado.', 'info');
+    };
+
+    // Menú móvil y reinicio
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('mobile-overlay');
+    function openMobileMenu() {
+      sidebar.classList.remove('-translate-x-full');
+      overlay.classList.remove('hidden');
+    }
+    function closeMobileMenu() {
+      sidebar.classList.add('-translate-x-full');
+      overlay.classList.add('hidden');
+    }
+    document.getElementById('mobile-menu-btn').addEventListener('click', openMobileMenu);
+    overlay.addEventListener('click', closeMobileMenu);
+    document.getElementById('btn-reset-all').addEventListener('click', () => {
+      state = defaultState();
+      closeMobileMenu();
+      renderCurrentView();
+      showToast('Cuestionario reiniciado.', 'info');
+    });
+
+    // Inicialización
+    renderCurrentView();
+  </script>
+</body>
+</html>
